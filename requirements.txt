@@ -1,0 +1,15 @@
+torch>=2.0.0
+git+https://github.com/openai/whisper.git
+pydub
+fastapi>=0.80
+uvicorn
+pyannote.audio
+python-dotenv
+torchaudio
+transformers
+urllib3==1.26.15
+
+openai
+
+pyinstrument
+speechbrain
