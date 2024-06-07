@@ -26,8 +26,6 @@ from dotenv import load_dotenv, find_dotenv
 from os import environ as env
 # Ensure ffmpeg is used by pydub
 
-pydub.AudioSegment.converter = "C:/FFmpeg/ffmpeg-7.0.1-full_build/bin/ffmpeg.exe"
-
 
 # Loading env variables
 ENV_FILE = find_dotenv()
