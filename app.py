@@ -909,7 +909,7 @@ async def speech_to_text_verification(
         full_transcript_language = full_text["language"]
         if (full_text["text"] != ""):
             text = full_text["text"]
-            #logger.info(f"Transcript: {text}")
+            logger.info(f"Transcript: {text}")
 
             full_result = {
                 "text": text,
