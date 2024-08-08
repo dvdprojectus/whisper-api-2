@@ -778,8 +778,8 @@ async def speech_to_text_verification(
         full_airtime = 0
         audio_segments = []
 
-        logger.info(f"PROFILE:BATCH_API_CALL:{USER}:{CONV_ID}:ID_{AUDIO_INDEX}")
-        logger.info(
+        logger.warning(f"PROFILE:BATCH_API_CALL:{USER}:{CONV_ID}:ID_{AUDIO_INDEX}")
+        logger.warning(
             f"PROFILE:BATCH_API_CALL:{USER}:{CONV_ID}:ID_{AUDIO_INDEX}:BATCH_LIST_{len(BATCH_LIST)}"
         )
 
@@ -830,7 +830,7 @@ async def speech_to_text_verification(
                         diar_results = diar_pipeline(temp_seg.name)
 
                         for turn, track, speaker in diar_results.itertracks(yield_label=True):
-                            logger.info(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+                            logger.warning(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
 
                             diar_start = int(turn.start * 1000)
                             diar_end = int(turn.end * 1000)
@@ -849,7 +849,7 @@ async def speech_to_text_verification(
                                 diar_segment.export(temp_diar_seg.name, format="wav")
 
                                 similarity = similarity_fn(temp_diar_seg.name, temp_verif.name)
-                                logger.info(f"SIMILARITY: {similarity}")
+                                logger.warning(f"SIMILARITY: {similarity}")
 
                                 if similarity >= VERIF_THRESHOLD:
                                     airtime = diar_end_sec - diar_start_sec
@@ -909,7 +909,7 @@ async def speech_to_text_verification(
         full_transcript_language = full_text["language"]
         if (full_text["text"] != ""):
             text = full_text["text"]
-            logger.info(f"Transcript: {text}")
+            logger.warning(f"Transcript: {text}")
 
             full_result = {
                 "text": text,
@@ -925,7 +925,7 @@ async def speech_to_text_verification(
 
         #os.remove(stitched_temp.name)
         #os.remove(temp_verif.name)
-        logger.info(f"Sending result: {full_result}")
+        #logger.warning(f"Sending result: {full_result}")
         return JSONResponse(
             status_code=200,
             content={
