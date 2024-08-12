@@ -765,6 +765,9 @@ async def speech_to_text_verification(
         SET_LANG = data.get("set_lang", "en")
         AUDIO_INDEX = data.get("audioIndex", None)
 
+        logger.info(f"Starting speech-to-text verification for {UCID}")
+        logger.debug(f"Set language: {SET_LANG}, Audio index: {AUDIO_INDEX}")
+
         # Prepare verification audio
         temp_verif = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         verif_audio = AudioSegment.from_file(
@@ -774,18 +777,19 @@ async def speech_to_text_verification(
         verif_audio.set_channels(1)
         verif_audio.export(temp_verif.name, format="wav")
 
+        logger.info("Verification audio prepared.")
+
         full_transcription = []
         full_airtime = 0
         audio_segments = []
 
-        logger.warning(f"PROFILE:BATCH_API_CALL:{USER}:{CONV_ID}:ID_{AUDIO_INDEX}")
-        logger.warning(
-            f"PROFILE:BATCH_API_CALL:{USER}:{CONV_ID}:ID_{AUDIO_INDEX}:BATCH_LIST_{len(BATCH_LIST)}"
-        )
+        logger.debug(f"Batch list length: {len(BATCH_LIST)}")
 
         for AUDIO_B64 in BATCH_LIST:
             if AUDIO_B64 and "," in AUDIO_B64:
                 format, data = AUDIO_B64.split(",", 1)
+
+                logger.debug(f"Processing batch item with format: {format}")
 
                 # Decode base64-encoded WebM audio to binary data
                 binary_data = base64.b64decode(data)
@@ -799,6 +803,8 @@ async def speech_to_text_verification(
                     wav_file_path = temp.name
                     audio.export(wav_file_path, format="wav")
 
+                logger.info(f"Converted audio to WAV format: {wav_file_path}")
+
                 wav = AudioSegment.from_wav(wav_file_path)
 
                 # Perform voice activity detection to get speech timestamps
@@ -806,6 +812,8 @@ async def speech_to_text_verification(
                 speech_timestamps = get_speech_timestamps(
                     wav_silero, silero_model, sampling_rate=FRAMERATE
                 )
+
+                logger.debug(f"Speech timestamps found: {speech_timestamps}")
 
                 for seg in speech_timestamps:
                     t_end = int((seg["end"] / FRAMERATE) * 1000)
@@ -826,11 +834,13 @@ async def speech_to_text_verification(
                         audio_seg.set_channels(1)
                         audio_seg.export(temp_seg.name, format="wav")
 
+                        logger.debug(f"Exported segment for diarization: {temp_seg.name}")
+
                         # Perform diarization on the segment
                         diar_results = diar_pipeline(temp_seg.name)
 
                         for turn, track, speaker in diar_results.itertracks(yield_label=True):
-                            logger.warning(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+                            logger.info(f"Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
 
                             diar_start = int(turn.start * 1000)
                             diar_end = int(turn.end * 1000)
@@ -839,6 +849,7 @@ async def speech_to_text_verification(
 
                             # If the segment is too short, skip it
                             if duration_ms < MIN_DURATION_MS:
+                                logger.debug(f"Segment too short, skipping: {duration_ms}ms")
                                 continue
 
                             diar_start_sec = diar_start / 1000
@@ -849,7 +860,7 @@ async def speech_to_text_verification(
                                 diar_segment.export(temp_diar_seg.name, format="wav")
 
                                 similarity = similarity_fn(temp_diar_seg.name, temp_verif.name)
-                                logger.warning(f"SIMILARITY: {similarity}")
+                                logger.info(f"Similarity score for segment: {similarity}")
 
                                 if similarity >= VERIF_THRESHOLD:
                                     airtime = diar_end_sec - diar_start_sec
@@ -862,8 +873,6 @@ async def speech_to_text_verification(
                                             "end": diar_end_sec,
                                         }
                                     )
-                                
-                                #os.remove(temp_diar_seg.name)
                     
                     os.remove(temp_seg.name)
                 
@@ -885,6 +894,8 @@ async def speech_to_text_verification(
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as stitched_temp:
             combined_segments.export(stitched_temp.name, format="wav")
 
+        logger.info("All segments stitched into a single audio file.")
+
         PROMPT_EN = "The following is a transcript from a person speaking in English. Some words may be in Spanish."
         PROMPT_ES = "La siguiente es una transcripción de una persona que habla en español. Algunas palabras pueden estar en inglés."
 
@@ -896,20 +907,16 @@ async def speech_to_text_verification(
 
         full_text = whisper_model.transcribe(audio=stitched_temp.name, **decode_options)
 
-       
-
         transcript_time = round(time.time() - start_time, 2)
         duration_ms = len(combined_segments)
         duration_s = round(duration_ms / 1000, 2)
 
-        logger.warning(
-            f"PROFILE:BATCH_WHISPER:{USER}:{CONV_ID}:ID_{AUDIO_INDEX}:audio_time_{duration_s}:{transcript_time}"
-        )
+        logger.info(f"Transcription completed in {transcript_time}s for {duration_s}s of audio.")
 
         full_transcript_language = full_text["language"]
-        if (full_text["text"] != ""):
+        if full_text["text"] != "":
             text = full_text["text"]
-            logger.warning(f"Transcript: {text}")
+            logger.info(f"Transcript: {text}")
 
             full_result = {
                 "text": text,
@@ -925,7 +932,8 @@ async def speech_to_text_verification(
 
         #os.remove(stitched_temp.name)
         #os.remove(temp_verif.name)
-        #logger.warning(f"Sending result: {full_result}")
+        logger.info(f"Returning transcription result for {UCID}")
+
         return JSONResponse(
             status_code=200,
             content={
@@ -937,7 +945,7 @@ async def speech_to_text_verification(
         )
 
     except Exception as e:
-        logger.error(f"ERROR: {e}")
+        logger.error(f"ERROR in speech_to_text_verification: {e}", exc_info=True)
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 if __name__ == "__main__":
