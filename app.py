@@ -769,12 +769,13 @@ async def speech_to_text_verification(
         logger.warning(f"Set language: {SET_LANG}, Audio index: {AUDIO_INDEX}")
 
         # Prepare verification audio
-        verif_audio_segment = AudioSegment.from_file(
+        temp_verif = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        verif_audio = AudioSegment.from_file(
             BytesIO(base64.b64decode(VERIF_AUDIO.split(",", 1)[1])), format="webm"
         )
-        verif_audio_segment.set_frame_rate(16000)
-        verif_audio_segment.set_channels(1)
-        verif_audio_array = np.array(verif_audio_segment.get_array_of_samples(), dtype=np.float32) / (1 << (8 * verif_audio_segment.sample_width - 1))
+        verif_audio.set_frame_rate(16000)
+        verif_audio.set_channels(1)
+        verif_audio.export(temp_verif.name, format="wav")
 
         logger.warning("Verification audio prepared.")
 
@@ -796,11 +797,18 @@ async def speech_to_text_verification(
                 # Load binary data as an audio segment
                 audio = AudioSegment.from_file(BytesIO(binary_data), format="webm")
 
-                # Convert audio to array
-                wav_array = np.array(audio.get_array_of_samples(), dtype=np.float32) / (1 << (8 * audio.sample_width - 1))
+                # Create a temporary file to save the WAV audio data
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp:
+                    # Convert audio segment to WAV format and save to the temporary file
+                    wav_file_path = temp.name
+                    audio.export(wav_file_path, format="wav")
+
+                logger.warning(f"Converted audio to WAV format: {wav_file_path}")
+
+                wav = AudioSegment.from_wav(wav_file_path)
 
                 # Perform voice activity detection to get speech timestamps
-                wav_silero = read_audio(wav_array, sampling_rate=FRAMERATE)
+                wav_silero = read_audio(wav_file_path, sampling_rate=FRAMERATE)
                 speech_timestamps = get_speech_timestamps(
                     wav_silero, silero_model, sampling_rate=FRAMERATE
                 )
@@ -818,44 +826,58 @@ async def speech_to_text_verification(
                     end_sec = t_end / 1000
 
                     # Extract the segment
-                    audio_seg = audio[t_start:t_end]
-                    audio_seg_array = np.array(audio_seg.get_array_of_samples(), dtype=np.float32) / (1 << (8 * audio_seg.sample_width - 1))
+                    audio_seg = wav[t_start:t_end]
 
-                    # Perform diarization on the segment
-                    diar_results = diar_pipeline(audio_seg_array, sr=FRAMERATE)
+                    # Create a temporary file to save the WAV audio data
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_seg:
+                        audio_seg.set_frame_rate(16000)
+                        audio_seg.set_channels(1)
+                        audio_seg.export(temp_seg.name, format="wav")
 
-                    for turn, track, speaker in diar_results.itertracks(yield_label=True):
-                        logger.warning(f"Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+                        logger.warning(f"Exported segment for diarization: {temp_seg.name}")
 
-                        diar_start = int(turn.start * 1000)
-                        diar_end = int(turn.end * 1000)
-                        diar_segment = audio_seg_array[diar_start:diar_end]
-                        duration_ms = len(diar_segment)
+                        # Perform diarization on the segment
+                        diar_results = diar_pipeline(temp_seg.name)
 
-                        # If the segment is too short, skip it
-                        if duration_ms < MIN_DURATION_MS:
-                            logger.warning(f"Segment too short, skipping: {duration_ms}ms")
-                            continue
+                        for turn, track, speaker in diar_results.itertracks(yield_label=True):
+                            logger.warning(f"Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
 
-                        diar_start_sec = diar_start / 1000
-                        diar_end_sec = diar_end / 1000
+                            diar_start = int(turn.start * 1000)
+                            diar_end = int(turn.end * 1000)
+                            diar_segment = audio_seg[diar_start:diar_end]
+                            duration_ms = len(diar_segment)
 
-                        # Calculate similarity without saving the file
-                        similarity = similarity_fn(diar_segment, verif_audio_array, FRAMERATE, 16000)
-                        logger.warning(f"Similarity score for segment: {similarity}")
+                            # If the segment is too short, skip it
+                            if duration_ms < MIN_DURATION_MS:
+                                logger.warning(f"Segment too short, skipping: {duration_ms}ms")
+                                continue
 
-                        if similarity >= VERIF_THRESHOLD:
-                            airtime = diar_end_sec - diar_start_sec
-                            full_airtime += airtime
+                            diar_start_sec = diar_start / 1000
+                            diar_end_sec = diar_end / 1000
+                            
+                            # Now that the diarization segment has been extracted, export it with a random filename
+                            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_diar_seg:
+                                diar_segment.export(temp_diar_seg.name, format="wav")
 
-                            audio_segments.append(
-                                {
-                                    "audio": diar_segment,
-                                    "start": diar_start_sec,
-                                    "end": diar_end_sec,
-                                }
-                            )
-        
+                                similarity = similarity_fn(temp_diar_seg.name, temp_verif.name)
+                                logger.warning(f"Similarity score for segment: {similarity}")
+
+                                if similarity >= VERIF_THRESHOLD:
+                                    airtime = diar_end_sec - diar_start_sec
+                                    full_airtime += airtime
+
+                                    audio_segments.append(
+                                        {
+                                            "audio": diar_segment,
+                                            "start": diar_start_sec,
+                                            "end": diar_end_sec,
+                                        }
+                                    )
+                    
+                    os.remove(temp_seg.name)
+                
+                os.remove(wav_file_path)
+
         silence_seg = AudioSegment.silent(duration=SILENCE_DURATION_MS)
 
         interwoven_segments = []
