@@ -107,7 +107,7 @@ silero_model, silero_utils = torch.hub.load(
 ) = silero_utils
 FRAMERATE = 16000
 
-VERIF_THRESHOLD = 0.8
+VERIF_THRESHOLD = 0.85
 MIN_DURATION_MS = 400
 
 # IMPORT THIS LAST. There seems to be some conflict with pyannote and msft wavlm
@@ -766,7 +766,7 @@ async def speech_to_text_verification(
         AUDIO_INDEX = data.get("audioIndex", None)
 
         logger.warning(f"Starting speech-to-text verification for {UCID}")
-        logger.warning(f"Set language: {SET_LANG}, Audio index: {AUDIO_INDEX}")
+        logger.warning(f"{UCID}: Set language: {SET_LANG}, Audio index: {AUDIO_INDEX}")
 
         # Prepare verification audio
         temp_verif = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
@@ -777,19 +777,19 @@ async def speech_to_text_verification(
         verif_audio.set_channels(1)
         verif_audio.export(temp_verif.name, format="wav")
 
-        logger.warning("Verification audio prepared.")
+        logger.warning(f"{UCID}: Verification audio prepared.")
 
         full_transcription = []
         full_airtime = 0
         audio_segments = []
 
-        logger.warning(f"Batch list length: {len(BATCH_LIST)}")
+        logger.warning(f"{UCID}: Batch list length: {len(BATCH_LIST)}")
 
         for AUDIO_B64 in BATCH_LIST:
             if AUDIO_B64 and "," in AUDIO_B64:
                 format, data = AUDIO_B64.split(",", 1)
 
-                logger.warning(f"Processing batch item with format: {format}")
+                logger.warning(f"{UCID}: Processing batch item with format: {format}")
 
                 # Decode base64-encoded WebM audio to binary data
                 binary_data = base64.b64decode(data)
@@ -803,7 +803,7 @@ async def speech_to_text_verification(
                     wav_file_path = temp.name
                     audio.export(wav_file_path, format="wav")
 
-                logger.warning(f"Converted audio to WAV format: {wav_file_path}")
+                logger.warning(f"{UCID}: Converted audio to WAV format: {wav_file_path}")
 
                 wav = AudioSegment.from_wav(wav_file_path)
 
@@ -813,7 +813,7 @@ async def speech_to_text_verification(
                     wav_silero, silero_model, sampling_rate=FRAMERATE
                 )
 
-                logger.warning(f"Speech timestamps found: {speech_timestamps}")
+                logger.warning(f"{UCID}: Speech timestamps found: {speech_timestamps}")
 
                 for seg in speech_timestamps:
                     t_end = int((seg["end"] / FRAMERATE) * 1000)
@@ -834,13 +834,13 @@ async def speech_to_text_verification(
                         audio_seg.set_channels(1)
                         audio_seg.export(temp_seg.name, format="wav")
 
-                        logger.warning(f"Exported segment for diarization: {temp_seg.name}")
+                        logger.warning(f"{UCID}: Exported segment for diarization: {temp_seg.name}")
 
                         # Perform diarization on the segment
                         diar_results = diar_pipeline(temp_seg.name)
 
                         for turn, track, speaker in diar_results.itertracks(yield_label=True):
-                            logger.warning(f"Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+                            logger.warning(f"{UCID}: Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
 
                             diar_start = int(turn.start * 1000)
                             diar_end = int(turn.end * 1000)
@@ -849,7 +849,7 @@ async def speech_to_text_verification(
 
                             # If the segment is too short, skip it
                             if duration_ms < MIN_DURATION_MS:
-                                logger.warning(f"Segment too short, skipping: {duration_ms}ms")
+                                logger.warning(f"{UCID}: Segment too short, skipping: {duration_ms}ms")
                                 continue
 
                             diar_start_sec = diar_start / 1000
@@ -860,7 +860,7 @@ async def speech_to_text_verification(
                                 diar_segment.export(temp_diar_seg.name, format="wav")
 
                                 similarity = similarity_fn(temp_diar_seg.name, temp_verif.name)
-                                logger.warning(f"Similarity score for segment: {similarity}")
+                                logger.warning(f"{UCID}: Similarity score for segment: {similarity}")
 
                                 if similarity >= VERIF_THRESHOLD:
                                     airtime = diar_end_sec - diar_start_sec
