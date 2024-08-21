@@ -752,7 +752,7 @@ async def speech_to_text_verification(
 ):
     SILENCE_DURATION_MS = 200
     MIN_DURATION_MS = 1000  # Minimum duration for a valid segment in ms
-    VERIF_THRESHOLD = 0.75  # Example threshold, adjust based on your requirement
+    VERIF_THRESHOLD = 0.88  # Example threshold, adjust based on your requirement
 
     try:
         # Extract the required properties from the incoming data
@@ -916,7 +916,7 @@ async def speech_to_text_verification(
         full_transcript_language = full_text["language"]
         if full_text["text"] != "":
             text = full_text["text"]
-            logger.info(f"Transcript: {text}")
+            logger.info(f"{UCID}: Transcript: {text}")
 
             full_result = {
                 "text": text,
@@ -932,7 +932,7 @@ async def speech_to_text_verification(
 
         #os.remove(stitched_temp.name)
         #os.remove(temp_verif.name)
-        logger.warning(f"Returning transcription result for {UCID}")
+        logger.warning(f"{UCID}:Returning transcription result for {UCID}")
 
         return JSONResponse(
             status_code=200,
