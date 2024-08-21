@@ -840,7 +840,6 @@ async def speech_to_text_verification(
                         diar_results = diar_pipeline(temp_seg.name)
 
                         for turn, track, speaker in diar_results.itertracks(yield_label=True):
-                            logger.warning(f"{UCID}: Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
 
                             diar_start = int(turn.start * 1000)
                             diar_end = int(turn.end * 1000)
@@ -860,7 +859,8 @@ async def speech_to_text_verification(
                                 diar_segment.export(temp_diar_seg.name, format="wav")
 
                                 similarity = similarity_fn(temp_diar_seg.name, temp_verif.name)
-                                logger.warning(f"{UCID}: Similarity score for segment: {similarity}")
+                                logger.warning(f"{UCID}: Segment:{temp_seg.name} Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+                                logger.warning(f"{UCID}: Segment:{temp_seg.name} Similarity score for segment: {similarity}")
 
                                 if similarity >= VERIF_THRESHOLD:
                                     airtime = diar_end_sec - diar_start_sec
@@ -915,8 +915,7 @@ async def speech_to_text_verification(
         full_transcript_language = full_text["language"]
         if full_text["text"] != "":
             text = full_text["text"]
-            logger.warning(f"{UCID}: Transcript: {text}")
-
+            logger.warning(f"{UCID}: Segment:{temp_seg.name} Score: {similarity} Transcript: {text}")
             full_result = {
                 "text": text,
                 "airtime": full_airtime,
