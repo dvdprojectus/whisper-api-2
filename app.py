@@ -911,7 +911,6 @@ async def speech_to_text_verification(
         duration_ms = len(combined_segments)
         duration_s = round(duration_ms / 1000, 2)
 
-        logger.warning(f"Transcription completed in {transcript_time}s for {duration_s}s of audio.")
 
         full_transcript_language = full_text["language"]
         if full_text["text"] != "":
