@@ -772,12 +772,12 @@ async def speech_to_text_verification(
 
         # Prepare verification audio
         temp_verif = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-        #verif_audio = AudioSegment.from_file(
-        #    BytesIO(base64.b64decode(VERIF_AUDIO.split(",", 1)[1])), format="webm"
-        #)
-        #verif_audio.set_frame_rate(16000)
-        #verif_audio.set_channels(1)
-        #verif_audio.export(temp_verif.name, format="wav")
+        verif_audio = AudioSegment.from_file(
+            BytesIO(base64.b64decode(VERIF_AUDIO.split(",", 1)[1])), format="webm"
+        )
+        verif_audio.set_frame_rate(16000)
+        verif_audio.set_channels(1)
+        verif_audio.export(temp_verif.name, format="wav")
 
         logger.warning(f"{UCID}: Verification audio prepared.")
 
