@@ -10,6 +10,8 @@ import base64
 import numpy as np
 import os
 import tempfile
+import uuid
+
 
 from openai import OpenAI
 
@@ -812,8 +814,9 @@ async def speech_to_text_verification(
                 speech_timestamps = get_speech_timestamps(
                     wav_silero, silero_model, sampling_rate=FRAMERATE
                 )
-
-                logger.warning(f"{UCID}: Speech timestamps found: {speech_timestamps}")
+                request_id = str(uuid.uuid4())
+                logger.warning(f"{UCID}: ID: {request_id} Speech timestamps found: {speech_timestamps}")
+                
 
                 for seg in speech_timestamps:
                     t_end = int((seg["end"] / FRAMERATE) * 1000)
@@ -834,7 +837,7 @@ async def speech_to_text_verification(
                         audio_seg.set_channels(1)
                         audio_seg.export(temp_seg.name, format="wav")
 
-                        logger.warning(f"{UCID}: Exported segment for diarization: {temp_seg.name}")
+                        logger.warning(f"{UCID}:  ID: {request_id} Exported segment for diarization: {temp_seg.name}")
 
                         # Perform diarization on the segment
                         diar_results = diar_pipeline(temp_seg.name)
@@ -848,7 +851,7 @@ async def speech_to_text_verification(
 
                             # If the segment is too short, skip it
                             if duration_ms < MIN_DURATION_MS:
-                                logger.warning(f"{UCID}: Segment too short, skipping: {duration_ms}ms")
+                                logger.warning(f"{UCID}: ID: {request_id} Segment too short, skipping: {duration_ms}ms")
                                 continue
 
                             diar_start_sec = diar_start / 1000
@@ -859,8 +862,8 @@ async def speech_to_text_verification(
                                 diar_segment.export(temp_diar_seg.name, format="wav")
 
                                 similarity = similarity_fn(temp_diar_seg.name, temp_verif.name)
-                                logger.warning(f"{UCID}: Segment:{temp_seg.name} Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
-                                logger.warning(f"{UCID}: Segment:{temp_seg.name} Similarity score for segment: {similarity}")
+                                logger.warning(f"{UCID}: ID: {request_id} Segment:{temp_seg.name} Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+                                logger.warning(f"{UCID}: ID: {request_id} Segment:{temp_seg.name} Similarity score for segment: {similarity}")
 
                                 if similarity >= VERIF_THRESHOLD:
                                     airtime = diar_end_sec - diar_start_sec
