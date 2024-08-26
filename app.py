@@ -932,7 +932,7 @@ async def speech_to_text_verification(
 
         #os.remove(stitched_temp.name)
         #os.remove(temp_verif.name)
-        logger.warning(f"{UCID}:Returning transcription result for {UCID}")
+        logger.warning(f"{UCID}: ID: {request_id} Returning transcription result for {UCID}")
 
         return JSONResponse(
             status_code=200,
