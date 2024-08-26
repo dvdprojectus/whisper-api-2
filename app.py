@@ -778,7 +778,6 @@ async def speech_to_text_verification(
         verif_audio.set_frame_rate(16000)
         verif_audio.set_channels(1)
         verif_audio.export(temp_verif.name, format="wav")
-
         logger.warning(f"{UCID}: Verification audio prepared.")
 
         full_transcription = []
@@ -804,8 +803,8 @@ async def speech_to_text_verification(
                     # Convert audio segment to WAV format and save to the temporary file
                     wav_file_path = temp.name
                     audio.export(wav_file_path, format="wav")
-
-                logger.warning(f"{UCID}: Converted audio to WAV format: {wav_file_path}")
+                request_id = str(uuid.uuid4())
+                logger.warning(f"{UCID}: ID: {request_id} Converted audio to WAV format: {wav_file_path}")
 
                 wav = AudioSegment.from_wav(wav_file_path)
 
@@ -814,7 +813,7 @@ async def speech_to_text_verification(
                 speech_timestamps = get_speech_timestamps(
                     wav_silero, silero_model, sampling_rate=FRAMERATE
                 )
-                request_id = str(uuid.uuid4())
+                
                 logger.warning(f"{UCID}: ID: {request_id} Speech timestamps found: {speech_timestamps}")
                 
 
