@@ -917,7 +917,7 @@ async def speech_to_text_verification(
         full_transcript_language = full_text["language"]
         if full_text["text"] != "":
             text = full_text["text"]
-            logger.warning(f"{UCID}: Segment:{temp_seg.name} Score: {similarity} Transcript: {text}")
+            logger.warning(f"{UCID}: ID: {request_id} Segment:{temp_seg.name} Score: {similarity} Transcript: {text}")
             full_result = {
                 "text": text,
                 "airtime": full_airtime,
