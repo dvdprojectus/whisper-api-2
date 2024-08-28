@@ -808,75 +808,39 @@ async def speech_to_text_verification(
 
                 wav = AudioSegment.from_wav(wav_file_path)
 
-                # Perform voice activity detection to get speech timestamps
-                wav_silero = read_audio(wav_file_path, sampling_rate=FRAMERATE)
-                speech_timestamps = get_speech_timestamps(
-                    wav_silero, silero_model, sampling_rate=FRAMERATE
-                )
+                diar_results = diar_pipeline(wav.name)
+                for turn, track, speaker in diar_results.itertracks(yield_label=True):
+                    diar_start = int(turn.start * 1000)  # Convert to milliseconds
+                    diar_end = int(turn.end * 1000)      # Convert to milliseconds
+                    diar_segment = wav[diar_start:diar_end]
+                    duration_ms = len(diar_segment)
+
+                    # If the segment is too short, skip it
+                    if duration_ms < MIN_DURATION_MS:
+                        logger.warning(f"{UCID}: ID: {request_id} Segment too short, skipping: {duration_ms}ms")
+                        continue
+                    diar_start_sec = diar_start / 1000
+                    diar_end_sec = diar_end / 1000
+
+                        
+                    # Now that the diarization segment has been extracted, export it with a random filename
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_diar_seg:
+                        diar_segment.export(temp_diar_seg.name, format="wav")
+                        similarity = similarity_fn(temp_diar_seg.name, temp_verif.name)
+                        logger.warning(f"{UCID}: ID: {request_id} Segment:{temp_diar_seg.name} Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+                        logger.warning(f"{UCID}: ID: {request_id} Segment:{temp_diar_seg.name} Similarity score for segment: {similarity}")
+                        if similarity >= VERIF_THRESHOLD:
+                            airtime = diar_end_sec - diar_start_sec
+                            full_airtime += airtime
+                            audio_segments.append(
+                                    {
+                                        "audio": diar_segment,
+                                        "start": diar_start_sec,
+                                        "end": diar_end_sec,
+                                    }
+                                )
                 
-                logger.warning(f"{UCID}: ID: {request_id} Speech timestamps found: {speech_timestamps}")
-                
-
-                for seg in speech_timestamps:
-                    t_end = int((seg["end"] / FRAMERATE) * 1000)
-                    t_start = int((seg["start"] / FRAMERATE) * 1000)
-
-                    if t_start < 0:
-                        t_start = 0
-
-                    start_sec = t_start / 1000
-                    end_sec = t_end / 1000
-
-                    # Extract the segment
-                    audio_seg = wav[t_start:t_end]
-
-                    # Create a temporary file to save the WAV audio data
-                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_seg:
-                        audio_seg.set_frame_rate(16000)
-                        audio_seg.set_channels(1)
-                        audio_seg.export(temp_seg.name, format="wav")
-
-                        logger.warning(f"{UCID}:  ID: {request_id} Exported segment for diarization: {temp_seg.name}")
-
-                        # Perform diarization on the segment
-                        diar_results = diar_pipeline(temp_seg.name)
-
-                        for turn, track, speaker in diar_results.itertracks(yield_label=True):
-
-                            diar_start = int(turn.start * 1000)
-                            diar_end = int(turn.end * 1000)
-                            diar_segment = audio_seg[diar_start:diar_end]
-                            duration_ms = len(diar_segment)
-
-                            # If the segment is too short, skip it
-                            if duration_ms < MIN_DURATION_MS:
-                                logger.warning(f"{UCID}: ID: {request_id} Segment too short, skipping: {duration_ms}ms")
-                                continue
-
-                            diar_start_sec = diar_start / 1000
-                            diar_end_sec = diar_end / 1000
-                            
-                            # Now that the diarization segment has been extracted, export it with a random filename
-                            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_diar_seg:
-                                diar_segment.export(temp_diar_seg.name, format="wav")
-
-                                similarity = similarity_fn(temp_diar_seg.name, temp_verif.name)
-                                logger.warning(f"{UCID}: ID: {request_id} Segment:{temp_seg.name} Diarization: start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
-                                logger.warning(f"{UCID}: ID: {request_id} Segment:{temp_seg.name} Similarity score for segment: {similarity}")
-
-                                if similarity >= VERIF_THRESHOLD:
-                                    airtime = diar_end_sec - diar_start_sec
-                                    full_airtime += airtime
-
-                                    audio_segments.append(
-                                        {
-                                            "audio": diar_segment,
-                                            "start": diar_start_sec,
-                                            "end": diar_end_sec,
-                                        }
-                                    )
-                    
-                    os.remove(temp_seg.name)
+                    os.remove(temp_diar_seg.name)
                 
                 os.remove(wav_file_path)
 
