@@ -808,7 +808,7 @@ async def speech_to_text_verification(
 
                 wav = AudioSegment.from_wav(wav_file_path)
 
-                diar_results = diar_pipeline(wav.name)
+                diar_results = diar_pipeline(wav_file_path)
                 for turn, track, speaker in diar_results.itertracks(yield_label=True):
                     diar_start = int(turn.start * 1000)  # Convert to milliseconds
                     diar_end = int(turn.end * 1000)      # Convert to milliseconds
@@ -881,7 +881,7 @@ async def speech_to_text_verification(
         full_transcript_language = full_text["language"]
         if full_text["text"] != "":
             text = full_text["text"]
-            logger.warning(f"{UCID}: ID: {request_id} Segment:{temp_seg.name} Score: {similarity} Transcript: {text}")
+            logger.warning(f"{UCID}: ID: {request_id} Segment:{temp_diar_seg.name} Score: {similarity} Transcript: {text}")
             full_result = {
                 "text": text,
                 "airtime": full_airtime,
